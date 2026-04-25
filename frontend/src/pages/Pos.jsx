@@ -2,31 +2,44 @@ import { FaBell, FaSignOutAlt, FaUserCircle } from "react-icons/fa";
 import { NavLink } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { FaSearch, FaSortAlphaDown } from "react-icons/fa";
-
+import axios from "axios";
+import { toast } from "react-toastify";
 const Pos = () => {
   const [philippineTime, setPhilippineTime] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
+  const [searchTerm, setSearchTerm] = useState("");
 
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [showModal, setShowModal] = useState(false);
+
+  const [showQtyModal, setShowQtyModal] = useState(false);
+  const [selectedForCart, setSelectedForCart] = useState(null);
+  const [inputQty, setInputQty] = useState(1);
+
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true); 
 
   const [cart, setCart] = useState([]);
 
   // 🔥 RECEIPT MODAL
   const [showReceipt, setShowReceipt] = useState(false);
 
-  const [products] = useState([
-    { id: 1001, name: "Hammer", price: 250, qty: 12 },
-    { id: 1002, name: "Screwdriver", price: 120, qty: 30 },
-    { id: 1003, name: "Wrench", price: 180, qty: 15 },
-    { id: 1004, name: "Drill", price: 1500, qty: 5 },
-    { id: 1005, name: "Tape Measure", price: 90, qty: 20 },
-    { id: 1006, name: "Pliers", price: 140, qty: 18 },
-    { id: 1007, name: "Socket Set", price: 850, qty: 7 },
-    { id: 1008, name: "Angle Grinder", price: 2200, qty: 4 },
-    { id: 1009, name: "Level Tool", price: 160, qty: 10 },
-    { id: 1010, name: "Chainsaw", price: 3200, qty: 3 },
-  ]);
+  useEffect(() => {
+  const fetchProducts = async () => {
+    try {
+      const res = await axios.get("http://localhost:8000/api/products");
+
+      setProducts(res.data);
+      setLoading(false);
+
+    } catch (error) {
+      console.error("Error fetching products:", error);
+      setLoading(false);
+    }
+  };
+
+  fetchProducts();
+}, []);
 
   useEffect(() => {
     const updateTime = () => {
@@ -50,27 +63,48 @@ const Pos = () => {
     setShowModal(true);
   };
 
-  const handleAdd = (product) => {
-    setCart((prev) => {
-      const existing = prev.find((item) => item.id === product.id);
+    const confirmAddToCart = () => {
+      if (!selectedForCart || inputQty <= 0) return;
 
-      if (existing) {
-        return prev.map((item) =>
-          item.id === product.id
-            ? { ...item, qty: item.qty + 1 }
-            : item
-        );
+      // optional: prevent exceeding stock
+      if (inputQty > selectedForCart.quantity) {
+        toast.error("Not enough stock!");
+        return;
       }
 
-      return [...prev, { ...product, qty: 1 }];
-    });
-  };
+      setCart((prev) => {
+        const existing = prev.find(
+          (item) => item._id === selectedForCart._id
+        );
 
-  const handleRemove = (id) => {
-    setCart((prev) => prev.filter((item) => item.id !== id));
-  };
+        if (existing) {
+          return prev.map((item) =>
+            item._id === selectedForCart._id
+              ? { ...item, qty: item.qty + Number(inputQty) }
+              : item
+          );
+        }
+
+        return [
+          ...prev,
+          { ...selectedForCart, qty: Number(inputQty) }
+        ];
+      });
+
+  setShowQtyModal(false);
+  setSelectedForCart(null);
+};
+
+    const handleRemove = (id) => {
+      setCart((prev) => prev.filter((item) => item._id !== id));
+    };
 
   const subtotal = cart.reduce((sum, item) => sum + item.qty * item.price, 0);
+
+  const filteredProducts = products.filter((item) =>
+    item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.category?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <>
@@ -115,13 +149,20 @@ const Pos = () => {
               <div className="search-wrapper2">
                 <div className="search-box">
                   <FaSearch className="search-icon" />
-                  <input type="text" placeholder="Search products..." />
+                  <input
+                    type="text"
+                    placeholder="Search products..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
                 </div>
 
                 <button className="sort-btn">
                   <FaSortAlphaDown />
                   <span>A–Z</span>
                 </button>
+
+                <NavLink to="/addproduct"><button className="btn btn-primary">Add more product</button></NavLink>
               </div>
 
               <div className="category-wrapper">
@@ -138,42 +179,61 @@ const Pos = () => {
                 </ul>
               </div>
 
-              <div className="product-grid">
-                {products.map((item) => (
-                  <div key={item.id} className="product-card">
+                <div className="product-grid">
+                  {filteredProducts.map((item) => (
+                    <div key={item._id} className="product-card">
 
-                    <div className="card-top">
-                      <span className="product-id">#{item.id}</span>
-                      <span className={`stock ${item.qty < 5 ? "low" : ""}`}>
-                        {item.qty} in stock
-                      </span>
-                    </div>
-
-                    <h4 className="product-title">{item.name}</h4>
-
-                    <div className="card-bottom">
-                      <span className="price">₱{item.price}</span>
-
-                      <div className="actions">
-                        <button
-                          className="btn-view"
-                          onClick={() => handleView(item)}
-                        >
-                          View
-                        </button>
-
-                        <button
-                          className="btn-add"
-                          onClick={() => handleAdd(item)}
-                        >
-                          Add
-                        </button>
+                      {/* ✅ ALWAYS render this */}
+                      <div className="card-image">
+                        {item.image ? (
+                          <img
+                            src={`http://localhost:8000/${item.image}`}
+                            alt={item.name}
+                          />
+                        ) : (
+                          <div className="no-image">
+                            No Image
+                          </div>
+                        )}
                       </div>
-                    </div>
 
-                  </div>
-                ))}
-              </div>
+                      <div className="card-top">
+                        <span className="product-id">#{item._id.slice(-5)}</span>
+
+                        <span className={`stock ${item.quantity < 5 ? "low" : ""}`}>
+                          {item.quantity} in stock
+                        </span>
+                      </div>
+
+                      <h4 className="product-title">{item.name}</h4>
+
+                      <div className="card-bottom">
+                        <span className="price">₱{item.price}</span>
+
+                        <div className="actions">
+                          <button
+                            className="btn-view"
+                            onClick={() => handleView(item)}
+                          >
+                            View
+                          </button>
+
+                          <button
+                            className="btn-add"
+                            onClick={() => {
+                              setSelectedForCart(item);
+                              setInputQty(1);
+                              setShowQtyModal(true);
+                            }}
+                          >
+                            Add
+                          </button>
+                        </div>
+                      </div>
+
+                    </div>
+                  ))}
+                </div>
             </div>
 
             {/* RIGHT - TRANSACTION */}
@@ -202,7 +262,7 @@ const Pos = () => {
 
                         <button
                           className="btn-remove"
-                          onClick={() => handleRemove(item.id)}
+                          onClick={() => handleRemove(item._id)}
                         >
                           ✕
                         </button>
@@ -230,7 +290,7 @@ const Pos = () => {
                 onClick={() => setShowReceipt(true)}
                 disabled={cart.length === 0}
               >
-                Confirm
+                Checkout
               </button>
 
             </div>
@@ -238,73 +298,212 @@ const Pos = () => {
         </div>
       </div>
 
-      {/* PRODUCT MODAL */}
-      {showModal && selectedProduct && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <h3>Product Details</h3>
-
-            <div className="modal-content">
-              <div><strong>ID:</strong> {selectedProduct.id}</div>
-              <div><strong>Product:</strong> {selectedProduct.name}</div>
-              <div><strong>Price:</strong> ₱{selectedProduct.price}</div>
-              <div><strong>Quantity:</strong> {selectedProduct.qty}</div>
-            </div>
-
-            <div className="modal-actions">
-              <button className="btn-primary" onClick={() => setShowModal(false)}>
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* RECEIPT MODAL */}
-      {showReceipt && (
-        <div className="modal-overlay" onClick={() => setShowReceipt(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+{showReceipt && (
+  <div className="modal-overlay" onClick={() => setShowReceipt(false)}>
+    <div
+      className="modal-card receipt-card"
+      onClick={(e) => e.stopPropagation()}
+    >
 
-            <h3>Receipt</h3>
+      <div className="receipt">
 
-            <div className="modal-content">
-              {cart.map((item) => (
-                <div key={item.id}>
-                  {item.name} ({item.qty}) — ₱{item.qty * item.price}
-                </div>
-              ))}
+        {/* HEADER */}
+        <div className="receipt-header">
+          <h4>Tire Center POS</h4>
+          <p>Official Receipt</p>
+          <p>{new Date().toLocaleString()}</p>
+        </div>
+
+        <div className="divider">--------------------------------</div>
+
+        {/* ITEMS */}
+        <div className="receipt-items">
+          {cart.map((item) => (
+            <div key={item._id} className="receipt-row">
+
+              <div className="left">
+                <span className="name">{item.name}</span>
+                <span className="qty">
+                  {item.qty} × ₱{item.price}
+                </span>
+              </div>
+
+              <div className="right">
+                ₱{item.qty * item.price}
+              </div>
+
+            </div>
+          ))}
+        </div>
+
+        <div className="divider">--------------------------------</div>
+
+        {/* TOTALS (FIXED ALIGNMENT) */}
+        <div className="receipt-totals">
+
+          <div className="total-row">
+            <span>Subtotal</span>
+            <span>₱{subtotal}</span>
+          </div>
+
+          <div className="total-row grand-total">
+            <span>Total</span>
+            <span>₱{subtotal}</span>
+          </div>
+
+        </div>
+
+        <div className="divider">--------------------------------</div>
+
+      </div>
+
+      {/* ACTIONS */}
+      <div className="modal-actions">
+        <button
+          className="btn-secondary"
+          onClick={() => setShowReceipt(false)}
+        >
+          Back
+        </button>
+
+        <button
+          className="btn-primary"
+          onClick={() => {
+            alert("Transaction Complete!");
+            setCart([]);
+            setShowReceipt(false);
+          }}
+        >
+          Complete
+        </button>
+      </div>
+
+    </div>
+  </div>
+)}
+      {loading ? (
+        <div className="loading">
+          <div className="spinner"></div>
+          <p>Loading products...</p>
+        </div>
+      ) : (
+        <div className="product-grid">
+          {/* map here */}
+        </div>
+      )}
+
+      {showModal && selectedProduct && (
+  <div className="modal-overlay" onClick={() => setShowModal(false)}>
+    <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+
+      <h3>Product Details</h3>
+
+      <div className="modal-content">
+
+        {/* IMAGE FIRST (better UX) */}
+        {selectedProduct?.image && (
+          <div style={{ marginBottom: "15px", textAlign: "center" }}>
+            <img
+              src={`http://localhost:8000/${selectedProduct.image}`}
+              alt="product"
+              style={{
+                width: "100%",
+                maxWidth: "250px",
+                height: "200px",
+                objectFit: "cover",
+                borderRadius: "10px",
+                border: "1px solid #ddd"
+              }}
+            />
+          </div>
+        )}
+
+        {/* DETAILS */}
+        <div><strong>ID:</strong> {selectedProduct._id}</div>
+        <div><strong>Product:</strong> {selectedProduct.name}</div>
+        <div><strong>Category:</strong> {selectedProduct.category}</div>
+        <div><strong>Price:</strong> ₱{selectedProduct.price}</div>
+        <div><strong>Stock:</strong> {selectedProduct.quantity}</div>
+
+      </div>
+
+      <div className="modal-actions">
+        <button
+          className="btn-primary"
+          onClick={() => setShowModal(false)}
+        >
+          Close
+        </button>
+      </div>
+
+    </div>
+  </div>
+)}
+
+    {showQtyModal && selectedForCart && (
+      <div
+        className="modal-overlay"
+        onClick={() => setShowQtyModal(false)}
+      >
+        <div
+          className="modal-card"
+          onClick={(e) => e.stopPropagation()}
+          style={{ maxWidth: "400px" }}
+        >
+          <h3>Add to Cart</h3>
+
+          <div className="modal-content">
+
+            <div style={{ marginBottom: "10px" }}>
+              <strong>{selectedForCart.name}</strong>
             </div>
 
-            <hr />
-
-            <div className="modal-content">
-              <div><strong>Subtotal:</strong> ₱{subtotal}</div>
-              <div><strong>Total:</strong> ₱{subtotal}</div>
+            <div style={{ marginBottom: "10px" }}>
+              Price: ₱{selectedForCart.price}
             </div>
 
-            <div className="modal-actions">
-              <button
-                className="btn-secondary"
-                onClick={() => setShowReceipt(false)}
-              >
-                Back
-              </button>
+            <div style={{ marginBottom: "10px" }}>
+              Stock: {selectedForCart.quantity}
+            </div>
 
-              <button
-                className="btn-primary"
-                onClick={() => {
-                  alert("Transaction Complete!");
-                  setCart([]);
-                  setShowReceipt(false);
+            {/* INPUT */}
+            <div style={{ marginTop: "15px" }}>
+              <label>Quantity</label>
+              <input
+                type="number"
+                min="1"
+                max={selectedForCart.quantity}
+                value={inputQty}
+                onChange={(e) => setInputQty(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "8px",
+                  marginTop: "5px"
                 }}
-              >
-                Complete
-              </button>
+              />
             </div>
 
           </div>
+
+          <div className="modal-actions">
+            <button
+              className="btn-secondary"
+              onClick={() => setShowQtyModal(false)}
+            >
+              Cancel
+            </button>
+
+            <button
+              className="btn-primary"
+              onClick={confirmAddToCart}
+            >
+              Add to Cart
+            </button>
+          </div>
         </div>
-      )}
+      </div>
+    )}
     </>
   );
 };

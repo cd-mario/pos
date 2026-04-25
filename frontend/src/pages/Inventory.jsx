@@ -2,9 +2,13 @@ import { FaBell, FaSignOutAlt, FaUserCircle } from "react-icons/fa";
 import { NavLink } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { FaSearch, FaSortAlphaDown, FaSortAlphaUp } from "react-icons/fa";
+import axios from "axios";
+import { toast } from "react-toastify";
+
 
 const Inventory = () => {
     const [philippineTime, setPhilippineTime] = useState("");
+    const [searchTerm, setSearchTerm] = useState("");
 
     // MODAL STATES
     const [selectedItem, setSelectedItem] = useState(null);
@@ -12,6 +16,30 @@ const Inventory = () => {
     const [showViewModal, setShowViewModal] = useState(false);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [deleteId, setDeleteId] = useState(null);
+
+    const handleDeleteClick = (id) => {
+        setDeleteId(id);
+        setShowDeleteModal(true);
+    };
+
+    const confirmDelete = async () => {
+    try {
+            await axios.delete(`http://localhost:8000/api/products/${deleteId}`);
+
+            setItems((prev) => prev.filter(item => item._id !== deleteId));
+
+            toast.success("Product deleted🗑️");
+
+            setShowDeleteModal(false);
+            setDeleteId(null);
+
+        } catch (error) {
+            console.error(error);
+            toast.error("Failed to delete product ❌");
+        }
+    };
 
     useEffect(() => {
         const updateTime = () => {
@@ -31,11 +59,8 @@ const Inventory = () => {
         return () => clearInterval(interval);
     }, []);
 
-    // SAMPLE DATA (replace with API later)
-    const [items, setItems] = useState([
-        { id: 1001, product: "Tubes", available: 2, price: 200 },
-        { id: 1002, product: "Bolts", available: 50, price: 300 },
-    ]);
+    const [items, setItems] = useState([]);
+    const [loading, setLoading] = useState(true);
 
     // OPEN VIEW MODAL
     const handleView = (item) => {
@@ -46,11 +71,14 @@ const Inventory = () => {
     };
 
     // HANDLE EDIT CHANGE
-    const handleEditChange = (e) => {
-        const { name, value } = e.target;
-        setEditedItem({ ...editedItem, [name]: value });
-    };
+        const handleEditChange = (e) => {
+            const { name, value } = e.target;
 
+            setEditedItem({
+                ...editedItem,
+                [name]: value
+            });
+        };
     // OPEN CONFIRM MODAL
     const handleSaveEdit = () => {
         setShowConfirmModal(true);
@@ -68,6 +96,28 @@ const Inventory = () => {
         setShowViewModal(false);
         setIsEditing(false);
     };
+
+    useEffect(() => {
+    const fetchProducts = async () => {
+            try {
+                const res = await axios.get("http://localhost:8000/api/products");
+
+                setItems(res.data);
+                setLoading(false);
+
+            } catch (error) {
+                console.error("Failed to fetch products:", error);
+                setLoading(false);
+            }
+        };
+
+        fetchProducts();
+    }, []);
+
+    const filteredItems = items.filter((item) =>
+        item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item._id.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
     return (
         <>
@@ -107,7 +157,12 @@ const Inventory = () => {
                     <div className="search-wrapper">
                         <div className="search-box">
                             <FaSearch className="search-icon" />
-                            <input type="text" placeholder="Search products..." />
+                            <input
+                                type="text"
+                                placeholder="Search products..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
                         </div>
 
                         <button className="sort-btn">
@@ -115,10 +170,6 @@ const Inventory = () => {
                             <span>A–Z</span>
                         </button>
 
-                        <button className="sort-btn">
-                            <FaSortAlphaUp />
-                            <span>Z–A</span>
-                        </button>
                     </div>
 
                     <div className="inventory-wrapper">
@@ -135,21 +186,26 @@ const Inventory = () => {
                                 </thead>
 
                                 <tbody>
-                                    {items.map((item) => (
-                                        <tr key={item.id}>
-                                            <th>{item.id}</th>
-                                            <td>{item.product}</td>
-                                            <td>{item.available}</td>
-                                            <td>{item.price}</td>
+                                    {filteredItems.map((item) => (
+                                        <tr key={item._id}>
+                                            <td>{item._id.slice(-5)}</td>
+                                            <td>{item.name}</td>
+                                            <td>{item.quantity}</td>
+                                            <td>₱{item.price}</td>
                                             <td>
                                                 <button
+                                                    style={{marginRight: '10px'}}
                                                     className="btn btn-sm btn-outline-secondary"
-                                                    style={{ marginRight: "10px" }}
                                                     onClick={() => handleView(item)}
                                                 >
                                                     View
                                                 </button>
-                                                <button class="btn btn-sm btn-outline-danger">Delete</button>
+                                                    <button
+                                                            className="btn btn-sm btn-outline-danger"
+                                                            onClick={() => handleDeleteClick(item._id)}
+                                                        >
+                                                            Delete
+                                                    </button>
                                             </td>
                                         </tr>
                                     ))}
@@ -162,64 +218,106 @@ const Inventory = () => {
 
             {/* ================= VIEW / EDIT MODAL ================= */}
             {showViewModal && selectedItem && (
-                <div className="modal-overlay" onClick={() => setShowViewModal(false)}>
-                    <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+                <div
+                    className="modal-overlay"
+                    onClick={() => setShowViewModal(false)}
+                >
+                    <div
+                        className="modal-card"
+                        onClick={(e) => e.stopPropagation()}
+                    >
 
                         <h3>Inventory Item</h3>
 
                         <div className="modal-content">
+
+                            {/* ID */}
                             <div>
-                                <strong>ID:</strong>{" "}
-                                {selectedItem.id}
+                                <strong>ID:</strong> {selectedItem._id}
                             </div>
 
+                            {/* NAME */}
                             <div>
-                                <strong>Product:</strong>{" "}
+                                <strong>Product Name:</strong>{" "}
                                 {isEditing ? (
                                     <input
-                                        name="product"
-                                        value={editedItem.product}
+                                        name="name"
+                                        value={editedItem.name}
                                         onChange={handleEditChange}
                                     />
                                 ) : (
-                                    selectedItem.product
+                                    selectedItem.name
                                 )}
                             </div>
 
+                            {/* CATEGORY */}
                             <div>
-                                <strong>Available:</strong>{" "}
+                                <strong>Category:</strong>{" "}
+                                {selectedItem.category}
+                            </div>
+
+                            {/* QUANTITY */}
+                            <div>
+                                <strong>Quantity:</strong>{" "}
                                 {isEditing ? (
                                     <input
-                                        name="available"
-                                        value={editedItem.available}
+                                        name="quantity"
+                                        type="number"
+                                        value={editedItem.quantity}
                                         onChange={handleEditChange}
                                     />
                                 ) : (
-                                    selectedItem.available
+                                    selectedItem.quantity
                                 )}
                             </div>
 
+                            {/* PRICE */}
                             <div>
                                 <strong>Price:</strong>{" "}
                                 {isEditing ? (
                                     <input
                                         name="price"
+                                        type="number"
                                         value={editedItem.price}
                                         onChange={handleEditChange}
                                     />
                                 ) : (
-                                    selectedItem.price
+                                    `₱${selectedItem.price}`
                                 )}
                             </div>
+
+                            {/* IMAGE (optional but good UX) */}
+                            {selectedItem.image && (
+                                <div style={{ marginTop: "10px" }}>
+                                    <strong>Image:</strong>
+                                    <br />
+                                    <img
+                                        src={`http://localhost:8000/${selectedItem.image}`}
+                                        alt="product"
+                                        style={{
+                                            width: "100%",
+                                            maxHeight: "200px",
+                                            objectFit: "cover",
+                                            marginTop: "8px",
+                                            borderRadius: "8px"
+                                        }}
+                                    />
+                                </div>
+                            )}
+
                         </div>
 
+                        {/* ACTIONS */}
                         <div className="modal-actions">
 
                             {!isEditing ? (
                                 <>
                                     <button
                                         className="btn btn-dark"
-                                        onClick={() => setIsEditing(true)}
+                                        onClick={() => {
+                                            setEditedItem(selectedItem); // 🔥 important fix
+                                            setIsEditing(true);
+                                        }}
                                     >
                                         Edit
                                     </button>
@@ -244,7 +342,7 @@ const Inventory = () => {
                                         className="btn-secondary"
                                         onClick={() => setIsEditing(false)}
                                     >
-                                        Back
+                                        Cancel
                                     </button>
                                 </>
                             )}
@@ -281,6 +379,37 @@ const Inventory = () => {
                     </div>
                 </div>
             )}
+
+            {showDeleteModal && (
+    <div
+        className="modal-overlay"
+        onClick={() => setShowDeleteModal(false)}
+    >
+        <div
+            className="modal-card"
+            onClick={(e) => e.stopPropagation()}
+        >
+            <h3>Confirm Delete</h3>
+            <p>Are you sure you want to delete this product?</p>
+
+            <div className="modal-actions">
+                <button
+                    className="btn-secondary"
+                    onClick={() => setShowDeleteModal(false)}
+                >
+                    Cancel
+                </button>
+
+                <button
+                    className="btn btn-danger"
+                    onClick={confirmDelete}
+                >
+                    Delete
+                </button>
+            </div>
+        </div>
+    </div>
+)}
         </>
     );
 };

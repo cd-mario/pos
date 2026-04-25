@@ -1,10 +1,12 @@
 import { FaBell, FaSignOutAlt, FaUserCircle } from "react-icons/fa";
 import { NavLink } from "react-router-dom";
 import { useEffect, useState } from "react";
+import axios from "axios";
+import { toast } from "react-toastify";
 
 const AddProduct = () => {
     const [philippineTime, setPhilippineTime] = useState("");
-
+    const [image, setImage] = useState(null);
     useEffect(() => {
         const updateTime = () => {
             const time = new Date().toLocaleTimeString("en-PH", {
@@ -23,11 +25,10 @@ const AddProduct = () => {
     }, []);
 
     const [formData, setFormData] = useState({
-        title: "",
+        name: "",
         category: "",
         price: "",
         quantity: "",
-        variants: "",
     });
 
     const [showModal, setShowModal] = useState(false);
@@ -40,6 +41,47 @@ const AddProduct = () => {
     const handleSubmit = (e) => {
         e.preventDefault();
         setShowModal(true);
+    };
+
+
+    const handleConfirmSave = async () => {
+        try {
+            const form = new FormData();
+
+            form.append("name", formData.name);
+            form.append("category", formData.category);
+            form.append("price", formData.price);
+            form.append("quantity", formData.quantity);
+
+            if (image) {
+                form.append("image", image);
+            }
+
+            const res = await axios.post(
+                "http://localhost:8000/api/products",
+                form
+            );
+
+            toast.success("Product added successfully!");
+
+            console.log("SUCCESS:", res.data);
+
+            setShowModal(false);
+
+            setFormData({
+                name: "",
+                category: "",
+                price: "",
+                quantity: ""
+            });
+
+            setImage(null);
+
+        } catch (error) {
+            console.error("ERROR:", error.response?.data || error.message);
+
+            toast.error("Failed to add product ❌");
+        }
     };
 
     return (
@@ -84,8 +126,8 @@ const AddProduct = () => {
                                 <label>Product title</label>
                                 <input
                                     type="text"
-                                    name="title"
-                                    value={formData.title}
+                                    name="name"
+                                    value={formData.name}
                                     onChange={handleChange}
                                     placeholder="bolts, screw, nuts"
                                 />
@@ -93,7 +135,11 @@ const AddProduct = () => {
 
                             <div className="form-group">
                                 <label>Media</label>
-                                <input type="file" accept="image/*" />
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => setImage(e.target.files[0])}
+                                />
                                 <small>Accepts product image (optional)</small>
                             </div>
 
@@ -142,17 +188,6 @@ const AddProduct = () => {
                                 </div>
                             </div>
 
-                            <div className="form-group">
-                                <label>Variants</label>
-                                <input
-                                    type="text"
-                                    name="variants"
-                                    value={formData.variants}
-                                    onChange={handleChange}
-                                    placeholder="Size, color, dimension..."
-                                />
-                            </div>
-
                             <div style={{ display: "flex", justifyContent: "space-between" }}>
                                 <button type="submit" className="submit-btn">
                                     Save product
@@ -185,7 +220,7 @@ const AddProduct = () => {
                         </p>
 
                         <div className="modal-content">
-                            <div><strong>Title:</strong> {formData.title}</div>
+                            <div><strong>Title:</strong> {formData.name}</div>
                             <div><strong>Category:</strong> {formData.category}</div>
                             <div><strong>Price:</strong> ₱{formData.price}</div>
                             <div><strong>Quantity:</strong> {formData.quantity}</div>
@@ -202,10 +237,7 @@ const AddProduct = () => {
 
                             <button
                                 className="btn-primary"
-                                onClick={() => {
-                                    console.log("Saved:", formData);
-                                    setShowModal(false);
-                                }}
+                                onClick={handleConfirmSave}
                             >
                                 Confirm Save
                             </button>
