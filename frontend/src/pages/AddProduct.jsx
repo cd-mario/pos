@@ -38,11 +38,6 @@ const AddProduct = () => {
         setFormData({ ...formData, [name]: value });
     };
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        setShowModal(true);
-    };
-
 
     const handleConfirmSave = async () => {
         try {
@@ -83,6 +78,20 @@ const AddProduct = () => {
             toast.error("Failed to add product ❌");
         }
     };
+
+    const handleSubmit = (e) => {
+    e.preventDefault();
+
+    const { name, category, price, quantity } = formData;
+
+    // check required fields (image is optional)
+    if (!name || !category || !price || !quantity) {
+        toast.error("All inputs are required ❌");
+        return;
+    }
+
+    setShowModal(true);
+};
 
     return (
         <>
@@ -189,12 +198,15 @@ const AddProduct = () => {
                             </div>
 
                             <div style={{ display: "flex", justifyContent: "space-between" }}>
-                                <button type="submit" className="submit-btn">
-                                    Save product
-                                </button>
+                            <button
+                                type="submit"
+                                className="btn btn-dark"
+                            >
+                                Save product
+                            </button>
 
                                 <NavLink to="/products">
-                                    <button type="button" className="btn btn-outline-dark">
+                                    <button type="button" className="btn btn-outline-secondary">
                                         Back
                                     </button>
                                 </NavLink>
@@ -224,7 +236,6 @@ const AddProduct = () => {
                             <div><strong>Category:</strong> {formData.category}</div>
                             <div><strong>Price:</strong> ₱{formData.price}</div>
                             <div><strong>Quantity:</strong> {formData.quantity}</div>
-                            <div><strong>Variants:</strong> {formData.variants}</div>
                         </div>
 
                         <div className="modal-actions">
